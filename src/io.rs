@@ -340,6 +340,21 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoWriter<'f, 'c, Ft, BUF_CA
 
         self.write_from_buffer()
     }
+
+    /// Block until all pending bytes have been transmitted.
+    pub fn finish(&mut self) -> io::Result<()> {
+        if !self.rb.is_empty() {
+            self.write_cycle()?;
+        }
+
+        let txbytes = self.txbytes()?;
+
+        if txbytes > 0 {
+            self.wait_for_tx_fifo_len(0)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> io::Write for FifoWriter<'f, 'c, Ft, BUF_CAP> {
