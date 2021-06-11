@@ -23,6 +23,7 @@
 //! [CC1101 Datasheet]: https://www.ti.com/lit/gpn/cc1101
 
 #![deny(missing_docs, unsafe_code, warnings)]
+#![allow(clippy::upper_case_acronyms)]
 
 pub mod io;
 pub mod regs;

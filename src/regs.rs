@@ -5,7 +5,7 @@
 
 #![deny(missing_docs, unsafe_code, warnings)]
 // TODO: Remove this when compiler stops warning about nothing
-#![allow(unused_braces)]
+#![allow(unused_braces, clippy::upper_case_acronyms)]
 
 use modular_bitfield_msb::prelude::*;
 use static_assertions::assert_eq_size;

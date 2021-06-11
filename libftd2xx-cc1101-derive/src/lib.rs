@@ -68,29 +68,21 @@ pub fn generate_cc1101_regs(input: TokenStream) -> TokenStream {
                         let gentype: syn::MetaList =
                             syn::parse2::<_>(quote! { #path #args }).unwrap();
                         let span = gentype.span();
-                        match gentype.nested.first().unwrap() {
-                            syn::NestedMeta::Meta(meta) => {
-                                match meta {
-                                    syn::Meta::Path(gentype_path) => {
-                                        return quote!(
-                                            ($passthru:tt {let $data_id:ident = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
-                                                mpsse!($passthru @{let $data_id = read_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8 + 0x80, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
-                                            };
-                                            ($passthru:tt {let ($stat_id:ident, $data_id:ident) = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
-                                                mpsse!($passthru @{let ($stat_id, $data_id) = read_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8 + 0x80, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
-                                            };
-                                            ($passthru:tt {#set_ident($data:expr); $($tail:tt)*} -> [$($out:tt)*]) => {
-                                                mpsse!($passthru @{write_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8, #enum_ident, $data, #gentype_path); $($tail)*} -> [$($out)*]);
-                                            };
-                                            ($passthru:tt {let $stat_id:ident = #set_ident($data:expr); $($tail:tt)*} -> [$($out:tt)*]) => {
-                                                mpsse!($passthru @{let $stat_id = write_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8, #enum_ident, $data, #gentype_path); $($tail)*} -> [$($out)*]);
-                                            };
-                                        );
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            _ => {}
+                        if let syn::NestedMeta::Meta(syn::Meta::Path(gentype_path)) = gentype.nested.first().unwrap() {
+                            return quote!(
+                                ($passthru:tt {let $data_id:ident = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
+                                    mpsse!($passthru @{let $data_id = read_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8 + 0x80, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
+                                };
+                                ($passthru:tt {let ($stat_id:ident, $data_id:ident) = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
+                                    mpsse!($passthru @{let ($stat_id, $data_id) = read_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8 + 0x80, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
+                                };
+                                ($passthru:tt {#set_ident($data:expr); $($tail:tt)*} -> [$($out:tt)*]) => {
+                                    mpsse!($passthru @{write_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8, #enum_ident, $data, #gentype_path); $($tail)*} -> [$($out)*]);
+                                };
+                                ($passthru:tt {let $stat_id:ident = #set_ident($data:expr); $($tail:tt)*} -> [$($out:tt)*]) => {
+                                    mpsse!($passthru @{let $stat_id = write_reg(::libftd2xx_cc1101::RegAddrs::#enum_ident as u8, #enum_ident, $data, #gentype_path); $($tail)*} -> [$($out)*]);
+                                };
+                            );
                         }
                         return format_err!(
                             span,
@@ -136,23 +128,15 @@ pub fn generate_cc1101_read_regs(input: TokenStream) -> TokenStream {
                         let gentype: syn::MetaList =
                             syn::parse2::<_>(quote! { #path #args }).unwrap();
                         let span = gentype.span();
-                        match gentype.nested.first().unwrap() {
-                            syn::NestedMeta::Meta(meta) => {
-                                match meta {
-                                    syn::Meta::Path(gentype_path) => {
-                                        return quote!(
-                                            ($passthru:tt {let $data_id:ident = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
-                                                mpsse!($passthru @{let $data_id = read_reg(::libftd2xx_cc1101::ReadRegAddrs::#enum_ident as u8, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
-                                            };
-                                            ($passthru:tt {let ($stat_id:ident, $data_id:ident) = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
-                                                mpsse!($passthru @{let ($stat_id, $data_id) = read_reg(::libftd2xx_cc1101::ReadRegAddrs::#enum_ident as u8, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
-                                            };
-                                        );
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            _ => {}
+                        if let syn::NestedMeta::Meta(syn::Meta::Path(gentype_path)) = gentype.nested.first().unwrap() {
+                            return quote!(
+                                ($passthru:tt {let $data_id:ident = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
+                                    mpsse!($passthru @{let $data_id = read_reg(::libftd2xx_cc1101::ReadRegAddrs::#enum_ident as u8, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
+                                };
+                                ($passthru:tt {let ($stat_id:ident, $data_id:ident) = #ident(); $($tail:tt)*} -> [$($out:tt)*]) => {
+                                    mpsse!($passthru @{let ($stat_id, $data_id) = read_reg(::libftd2xx_cc1101::ReadRegAddrs::#enum_ident as u8, #enum_ident, #gentype_path); $($tail)*} -> [$($out)*]);
+                                };
+                            );
                         }
                         return format_err!(
                             span,
