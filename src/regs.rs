@@ -4,6 +4,8 @@
 //! PDF reference links work in Firefox.
 
 #![deny(missing_docs, unsafe_code, warnings)]
+// TODO: Remove this when compiler stops warning about nothing
+#![allow(unused_braces)]
 
 use modular_bitfield_msb::prelude::*;
 use static_assertions::assert_eq_size;
