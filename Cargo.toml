@@ -25,7 +25,8 @@ ringbuffer = "~0.7.1"
 [dev-dependencies]
 version-sync = "~0.9.2"
 
+[features]
+static = ["libftd2xx/static"]
+
 [workspace]
-members = [
-    "libftd2xx-cc1101-derive"
-]
+members = ["libftd2xx-cc1101-derive"]
