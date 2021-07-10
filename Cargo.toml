@@ -15,7 +15,7 @@ edition = "2018"
 maintenance = { status = "experimental" }
 
 [dependencies]
-libftd2xx-cc1101-derive = { path = "libftd2xx-cc1101-derive", version = "0.1.0" }
+libftd2xx-cc1101-derive = "0.1.0"
 libftd2xx = "~0.31.0"
 modular-bitfield-msb = "~0.11.2"
 static_assertions = "~1.1.0"
