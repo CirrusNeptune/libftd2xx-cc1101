@@ -2,7 +2,7 @@
 name = "libftd2xx-cc1101-derive"
 version = "0.1.0"
 authors = ["Cirrus <cirrus.neptune@protonmail.com>"]
-description = "Libary for interfacing with CC1101 via FT232H"
+description = "Derive crate for libftd2xx-cc1101"
 license = "BSD-3-Clause"
 repository = "https://github.com/CirrusNeptune/libftd2xx-cc1101.git"
 readme = "README.md"

@@ -156,6 +156,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: cargo publish --token ${CRATES_IO_TOKEN}
+      - run: |
+          pushd libftd2xx-cc1101-derive
+          cargo publish --token ${CRATES_IO_TOKEN}
+          popd
+          cargo publish --token ${CRATES_IO_TOKEN}
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
