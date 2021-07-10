@@ -158,7 +158,7 @@ jobs:
           toolchain: stable
       - run: |
           pushd libftd2xx-cc1101-derive
-          cargo publish --token ${CRATES_IO_TOKEN}
+          cargo publish --token ${CRATES_IO_TOKEN} || true
           popd
           cargo publish --token ${CRATES_IO_TOKEN}
         env:
