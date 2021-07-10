@@ -1,0 +1,1 @@
+Derive crate for [libftd2xx-cc1101](https://github.com/CirrusNeptune/libftd2xx-cc1101).
