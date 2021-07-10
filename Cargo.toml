@@ -16,7 +16,7 @@ maintenance = { status = "experimental" }
 
 [dependencies]
 libftd2xx-cc1101-derive = { path = "libftd2xx-cc1101-derive", version = "0.1.0" }
-libftd2xx = { git = "https://github.com/CirrusNeptune/libftd2xx-rs", branch = "mpsse-macro" }
+libftd2xx = "~0.31.0"
 modular-bitfield-msb = "~0.11.2"
 static_assertions = "~1.1.0"
 log = "~0.4.11"
