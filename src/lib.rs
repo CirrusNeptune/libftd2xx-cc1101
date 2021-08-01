@@ -495,7 +495,7 @@ impl MpsseCmdBuilder {
     pub fn clock_data_out(self, data: &[u8]) -> Self {
         Self(
             self.0
-                .clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, &data),
+                .clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, data),
         )
     }
 
