@@ -15,15 +15,16 @@ edition = "2018"
 maintenance = { status = "experimental" }
 
 [dependencies]
-libftd2xx-cc1101-derive = "0.1.0"
-libftd2xx = "~0.31.0"
-modular-bitfield-msb = "~0.11.2"
-static_assertions = "~1.1.0"
-log = "~0.4.11"
-ringbuffer = "~0.7.1"
+libftd2xx-cc1101-derive = { version = "0.1.0", path = "libftd2xx-cc1101-derive" }
+libftd2xx = "0.32.3"
+ftdi-mpsse = "0.1.1"
+modular-bitfield-msb = "0.11.2"
+static_assertions = "1.1.0"
+log = "0.4.20"
+ringbuffer = "0.15.0"
 
 [dev-dependencies]
-version-sync = "~0.9.2"
+version-sync = "0.9.5"
 
 [features]
 static = ["libftd2xx/static"]

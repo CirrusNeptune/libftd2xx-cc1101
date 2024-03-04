@@ -5,10 +5,11 @@
 use crate::regs::{FifoThreshold, GDOCfg, RXBYTES, TXBYTES};
 use crate::{Command, MpsseCmdBuilder, ReadRegAddrs, RegAddrs, Status, CC1101};
 use libftd2xx::{
-    mpsse, ClockBits, ClockBitsIn, ClockBitsOut, ClockDataIn, FtdiCommon, TimeoutError,
+    ClockBits, ClockBitsIn, ClockBitsOut, ClockDataIn, FtdiCommon, TimeoutError,
 };
+use ftdi_mpsse::mpsse;
 use log::trace;
-use ringbuffer::{ConstGenericRingBuffer, RingBuffer, RingBufferRead, RingBufferWrite};
+use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use std::io;
 
 const fn size_to_rx_threshold(size: usize) -> FifoThreshold {
@@ -192,6 +193,27 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoReader<'f, 'c, Ft, BUF_CA
         }
 
         self.read_into_buffer(read_len)
+    }
+
+    /// Get RSSI
+    pub fn rssi(&mut self) -> io::Result<u8> {
+        mpsse! {
+            let (read_rssi, READ_LEN) = {
+                set_gpio_lower(0x0, 0xb);
+                clock_bits_out(ClockBitsOut::MsbNeg, ReadRegAddrs::RSSI as u8, 8);
+                clock_bits_in(ClockBitsIn::MsbNeg, 8);
+                set_gpio_lower(0x8, 0xb);
+                send_immediate();
+            };
+        }
+
+        trace!(">CC1101 RSSI");
+        self.cc1101.ftdi.write_all(&read_rssi).map_err(timeout_error)?;
+        let mut buf = [0_u8; READ_LEN];
+        while self.cc1101.ftdi.read_all(&mut buf).is_err() {}
+        let rssi = buf[0];
+        trace!("<CC1101 RSSI DONE {}", rssi);
+        Ok(rssi)
     }
 }
 

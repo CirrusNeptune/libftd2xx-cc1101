@@ -28,12 +28,12 @@
 pub mod io;
 pub mod regs;
 
-use crate::regs::CcaMode;
+use crate::regs::{PktFormat};
 use libftd2xx::{FtdiCommon, TimeoutError};
 use libftd2xx_cc1101_derive::{CC1101Commands, CC1101ReadRegs, CC1101Regs};
 use modular_bitfield_msb::prelude::*;
 use regs::{
-    FifoThreshold, FsAutocal, GDOCfg, LengthConfig, ModFormat, PoTimeout, Regs, SyncMode, WorRes,
+    FifoThreshold, FsAutocal, GDOCfg, LengthConfig, ModFormat, PoTimeout, Regs, SyncMode,
 };
 
 /// Used in [chip status byte](https://www.ti.com/lit/ds/symlink/cc1101.pdf?ts=1623437777103&ref_url=https%253A%252F%252Fwww.ti.com%252Fproduct%252FCC1101#%5B%7B%22num%22%3A146%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C69%2C753%2C0%5D)
@@ -71,8 +71,9 @@ pub struct Status {
 mod mpsse_support {
     use crate::{Command, Regs, State, Status};
     use libftd2xx::{
-        mpsse, ClockBits, ClockBitsOut, ClockDataIn, ClockDataOut, FtdiCommon, TimeoutError,
+        ClockBits, ClockBitsOut, ClockDataIn, ClockDataOut, FtdiCommon, TimeoutError,
     };
+    use ftdi_mpsse::mpsse;
     use log::trace;
 
     pub fn reset<Ft: FtdiCommon>(ftdi: &mut Ft) -> Result<(), TimeoutError> {
@@ -353,6 +354,7 @@ impl<'f, Ft: FtdiCommon> CC1101<'f, Ft> {
             self.regs
                 .pktctrl0()
                 .with_white_data(false)
+                .with_pkt_format(PktFormat::Normal)
                 .with_crc_en(false)
                 .with_length_config(LengthConfig::Infinite),
         );
@@ -363,20 +365,19 @@ impl<'f, Ft: FtdiCommon> CC1101<'f, Ft> {
                 .mdmcfg4()
                 .with_chanbw_e(3)
                 .with_chanbw_m(3)
-                .with_drate_e(6),
+                .with_drate_e(7),
         );
         self.regs
-            .set_mdmcfg3(self.regs.mdmcfg3().with_drate_m(0x67)); // 2.2254 kBaud
+            .set_mdmcfg3(self.regs.mdmcfg3().with_drate_m(0x83)); // 4.8 kBaud
         self.regs.set_mdmcfg2(
             self.regs
                 .mdmcfg2()
+                .with_dem_dcfilt_off(true)
                 .with_mod_format(ModFormat::AskOok)
                 .with_sync_mode(SyncMode::None),
         );
         self.regs
             .set_deviatn(self.regs.deviatn().with_deviation_e(1).with_deviation_m(5));
-        self.regs
-            .set_mcsm1(self.regs.mcsm1().with_cca_mode(CcaMode::Always));
         self.regs.set_mcsm0(
             self.regs
                 .mcsm0()
@@ -385,8 +386,6 @@ impl<'f, Ft: FtdiCommon> CC1101<'f, Ft> {
         );
         self.regs
             .set_foccfg(self.regs.foccfg().with_foc_bs_cs_gate(false));
-        self.regs
-            .set_worctrl(self.regs.worctrl().with_wor_res(WorRes::Period2_15));
         self.regs.set_frend0(self.regs.frend0().with_pa_power(1));
         self.regs.set_fscal3(self.regs.fscal3().with_fscal3(3));
         self.regs
@@ -473,11 +472,11 @@ impl<'f, Ft: FtdiCommon> CC1101<'f, Ft> {
     }
 }
 
-pub(crate) struct MpsseCmdBuilder(pub ::libftd2xx::MpsseCmdBuilder);
+pub(crate) struct MpsseCmdBuilder(pub ::ftdi_mpsse::MpsseCmdBuilder);
 
 impl MpsseCmdBuilder {
     pub fn new() -> Self {
-        Self(::libftd2xx::MpsseCmdBuilder::new())
+        Self(::ftdi_mpsse::MpsseCmdBuilder::new())
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -495,14 +494,14 @@ impl MpsseCmdBuilder {
     pub fn clock_data_out(self, data: &[u8]) -> Self {
         Self(
             self.0
-                .clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, data),
+                .clock_data_out(::ftdi_mpsse::ClockDataOut::MsbNeg, data),
         )
     }
 
     pub fn clock_bits_out(self, data: u8, len: u8) -> Self {
         Self(
             self.0
-                .clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, data, len),
+                .clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, data, len),
         )
     }
 }
@@ -544,7 +543,7 @@ macro_rules! __mpsse_base {
         ::log::trace!(">CC1101 {:?}", $cmd as ::libftd2xx_cc1101::Command);
         mpsse!($passthru {
             cs_low();
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $cmd, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $cmd, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -559,7 +558,7 @@ macro_rules! __mpsse_base {
             ::log::trace!("<CC1101 {:?} {:?}", $cmd as ::libftd2xx_cc1101::Command, $stat_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $cmd, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $cmd, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -577,7 +576,7 @@ macro_rules! __mpsse_base {
         ::log::trace!(concat!(">CC1101 ", stringify!($msg), " {:x?}"), [$($data,)*]);
         mpsse!($passthru {
             cs_low();
-            clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, [$opcode, $($data,)*]);
+            clock_data_out(::ftdi_mpsse::ClockDataOut::MsbNeg, [$opcode, $($data,)*]);
             cs_high();
             $($tail)*
         } -> [$($out)*]);
@@ -603,7 +602,7 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($msg), " {:#?}"), $stat_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_data(::libftd2xx::ClockData::MsbPosIn, [$opcode, $($data,)*]);
+            clock_data(::ftdi_mpsse::ClockData::MsbPosIn, [$opcode, $($data,)*]);
             cs_high();
             $($tail)*
         } -> [$($out)*]);
@@ -624,7 +623,7 @@ macro_rules! __mpsse_base {
         ::log::trace!(">CC1101 ALL REGS {:#?}", $data);
         mpsse!($passthru {
             cs_low();
-            clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, [0x40,
+            clock_data_out(::ftdi_mpsse::ClockDataOut::MsbNeg, [0x40,
                 ($data as ::libftd2xx_cc1101::regs::Regs).into_bytes()[0],
                 ($data as ::libftd2xx_cc1101::regs::Regs).into_bytes()[1],
                 ($data as ::libftd2xx_cc1101::regs::Regs).into_bytes()[2],
@@ -737,7 +736,7 @@ macro_rules! __mpsse_base {
             ::log::trace!("<CC1101 ALL REGS {:#?}", $stat_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_data(::libftd2xx::ClockData::MsbPosIn, [0x40,
+            clock_data(::ftdi_mpsse::ClockData::MsbPosIn, [0x40,
                 ($data as ::libftd2xx_cc1101::regs::Regs).into_bytes()[0],
                 ($data as ::libftd2xx_cc1101::regs::Regs).into_bytes()[1],
                 ($data as ::libftd2xx_cc1101::regs::Regs).into_bytes()[2],
@@ -801,8 +800,8 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($msg), " {:x?}"), $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode, 8);
-            clock_data_in(::libftd2xx::ClockDataIn::MsbNeg, $len);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode, 8);
+            clock_data_in(::ftdi_mpsse::ClockDataIn::MsbNeg, $len);
             cs_high();
             $($tail)*
         } -> [$($out)*]);
@@ -829,8 +828,8 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($msg), " {:?} {:x?}"), $stat_id, $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode, 8);
-            clock_data_in(::libftd2xx::ClockDataIn::MsbNeg, $len);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode, 8);
+            clock_data_in(::ftdi_mpsse::ClockDataIn::MsbNeg, $len);
             cs_high();
             $($tail)*
         } -> [$($out)*]);
@@ -856,8 +855,8 @@ macro_rules! __mpsse_base {
             ::log::trace!("<CC1101 ALL REGS {:#?}", $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, 0xC0, 8);
-            clock_data_in(::libftd2xx::ClockDataIn::MsbNeg, 47);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, 0xC0, 8);
+            clock_data_in(::ftdi_mpsse::ClockDataIn::MsbNeg, 47);
             cs_high();
             $($tail)*
         } -> [$($out)*]);
@@ -874,8 +873,8 @@ macro_rules! __mpsse_base {
             ::log::trace!("<CC1101 ALL REGS {:?} {:#?}", $stat_id, $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, 0xC0, 8);
-            clock_data_in(::libftd2xx::ClockDataIn::MsbNeg, 47);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, 0xC0, 8);
+            clock_data_in(::ftdi_mpsse::ClockDataIn::MsbNeg, 47);
             cs_high();
             $($tail)*
         } -> [$($out)*]);
@@ -899,12 +898,12 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:x?}"), $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode + 1, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode + 2, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode + 1, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode + 2, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -922,12 +921,12 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:?} {:x?}"), $stat_id, $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode + 1, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode + 2, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode + 1, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode + 2, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -942,10 +941,10 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:x?}"), $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode + 1, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode + 1, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -962,10 +961,10 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:?} {:x?}"), $stat_id, $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode + 1, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode + 1, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -980,8 +979,8 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:x?}"), $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits_out(::libftd2xx::ClockBitsOut::MsbNeg, $opcode, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
+            clock_bits_out(::ftdi_mpsse::ClockBitsOut::MsbNeg, $opcode, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -997,8 +996,8 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:?} {:x?}"), $stat_id, $data_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_bits(::libftd2xx::ClockBits::MsbPosIn, $opcode, 8);
-            clock_bits_in(::libftd2xx::ClockBitsIn::MsbNeg, 8);
+            clock_bits(::ftdi_mpsse::ClockBits::MsbPosIn, $opcode, 8);
+            clock_bits_in(::ftdi_mpsse::ClockBitsIn::MsbNeg, 8);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -1016,7 +1015,7 @@ macro_rules! __mpsse_base {
         ::log::trace!(concat!(">CC1101 ", stringify!($enum_var), " {:x?}"), $data);
         mpsse!($passthru {
             cs_low();
-            clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, [$opcode, ($data >> 16) & 0x3,
+            clock_data_out(::ftdi_mpsse::ClockDataOut::MsbNeg, [$opcode, ($data >> 16) & 0x3,
                                                                $opcode + 1, ($data >> 8) & 0xff,
                                                                $opcode + 2, $data & 0xff]);
             $($tail)*
@@ -1038,7 +1037,7 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:#?}"), $stat_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_data(::libftd2xx::ClockData::MsbPosIn, [$opcode, ($data >> 16) & 0x3,
+            clock_data(::ftdi_mpsse::ClockData::MsbPosIn, [$opcode, ($data >> 16) & 0x3,
                                                           $opcode + 1, ($data >> 8) & 0xff,
                                                           $opcode + 2, $data & 0xff]);
             $($tail)*
@@ -1050,7 +1049,7 @@ macro_rules! __mpsse_base {
         ::log::trace!(concat!(">CC1101 ", stringify!($enum_var), " {:x?}"), $data);
         mpsse!($passthru {
             cs_low();
-            clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, [$opcode, ($data >> 8) & 0xff,
+            clock_data_out(::ftdi_mpsse::ClockDataOut::MsbNeg, [$opcode, ($data >> 8) & 0xff,
                                                                $opcode + 1, $data & 0xff]);
             $($tail)*
         } -> [$($out)*]);
@@ -1069,7 +1068,7 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:#?}"), $stat_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_data(::libftd2xx::ClockData::MsbPosIn, [$opcode, ($data >> 8) & 0xff,
+            clock_data(::ftdi_mpsse::ClockData::MsbPosIn, [$opcode, ($data >> 8) & 0xff,
                                                           $opcode + 1, $data & 0xff]);
             $($tail)*
         } -> [$($out)*]);
@@ -1080,7 +1079,7 @@ macro_rules! __mpsse_base {
         ::log::trace!(concat!(">CC1101 ", stringify!($enum_var), " {:x?}"), $data);
         mpsse!($passthru {
             cs_low();
-            clock_data_out(::libftd2xx::ClockDataOut::MsbNeg, [$opcode, ::libftd2xx_cc1101::__mpsse_base!(@encode $($tp)*, $data)]);
+            clock_data_out(::ftdi_mpsse::ClockDataOut::MsbNeg, [$opcode, ::libftd2xx_cc1101::__mpsse_base!(@encode $($tp)*, $data)]);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -1096,7 +1095,7 @@ macro_rules! __mpsse_base {
             ::log::trace!(concat!("<CC1101 ", stringify!($enum_var), " {:#?}"), $stat_id);
         }), $cs)), $read_len) {
             cs_low();
-            clock_data(::libftd2xx::ClockData::MsbPosIn, [$opcode, ::libftd2xx_cc1101::__mpsse_base!(@encode $($tp)*, $data)]);
+            clock_data(::ftdi_mpsse::ClockData::MsbPosIn, [$opcode, ::libftd2xx_cc1101::__mpsse_base!(@encode $($tp)*, $data)]);
             $($tail)*
         } -> [$($out)*]);
     };
@@ -1106,8 +1105,8 @@ macro_rules! __mpsse_base {
         $ft.write_all(&[$($out)*]).unwrap();
     };
     (@transfer $ft:tt, [$($out:tt)*], $buf:ident, $read_len:expr) => {
-        $ft.write_all(&[$($out)* ::libftd2xx::MpsseCmd::SendImmediate as u8]).unwrap();
-        ::log::trace!(">CC1101 WRITING {:x?}", &[$($out)* ::libftd2xx::MpsseCmd::SendImmediate as u8]);
+        $ft.write_all(&[$($out)* ::ftdi_mpsse::MpsseCmd::SendImmediate as u8]).unwrap();
+        ::log::trace!(">CC1101 WRITING {:x?}", &[$($out)* ::ftdi_mpsse::MpsseCmd::SendImmediate as u8]);
         let mut $buf: [u8; $read_len] = [0; $read_len];
         $ft.read_all(&mut $buf).unwrap();
         ::log::trace!("<CC1101 READ {:x?}", &$buf);
@@ -1132,9 +1131,9 @@ macro_rules! __mpsse_base {
         };
     };
 
-    // Everything else handled by libftd2xx crate implementation.
+    // Everything else handled by ftdi_mpsse crate implementation.
     ($($tokens:tt)*) => {
-        ::libftd2xx::mpsse!($($tokens)*);
+        ::ftdi_mpsse::mpsse!($($tokens)*);
     };
 }
 

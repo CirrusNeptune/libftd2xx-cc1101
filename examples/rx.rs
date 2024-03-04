@@ -36,8 +36,9 @@ fn main() {
     let mut cc1101 = CC1101::new(&mut ftdi);
     cc1101
         .initialize(|regs, pa_table| {
-            regs.set_freq(1093805); // 433.943634 MHz
-            regs.set_mdmcfg3(regs.mdmcfg3().with_drate_m(0x67)); // 2.2254 kBaud
+            regs.set_freq(1090733); // 432.725 MHz
+            regs.set_mdmcfg4(regs.mdmcfg4().with_drate_e(0x6));
+            regs.set_mdmcfg3(regs.mdmcfg3().with_drate_m(0x7e)); // 2370 Baud
             regs.set_mdmcfg2(
                 regs.mdmcfg2()
                     .with_mod_format(ModFormat::AskOok)
