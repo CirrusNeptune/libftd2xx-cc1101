@@ -140,7 +140,7 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoReader<'f, 'c, Ft, BUF_CA
         trace!(">CC1101 WAITING_FOR_RXBYTES >= {}", len);
         self.cc1101.ftdi.write_all(&wait).map_err(timeout_error)?;
         let mut buf = [0_u8; READ_LEN];
-        while self.cc1101.ftdi.read_all(&mut buf).is_err() {}
+        self.cc1101.ftdi.read_all(&mut buf).map_err(|_| io::Error::from(io::ErrorKind::ConnectionAborted))?;
         let rxbytes = RXBYTES::from_bytes(buf).num_rxbytes() as usize;
         trace!("<CC1101 WAITING_FOR_RXBYTES DONE {}", rxbytes);
 
@@ -210,7 +210,7 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoReader<'f, 'c, Ft, BUF_CA
         trace!(">CC1101 RSSI");
         self.cc1101.ftdi.write_all(&read_rssi).map_err(timeout_error)?;
         let mut buf = [0_u8; READ_LEN];
-        while self.cc1101.ftdi.read_all(&mut buf).is_err() {}
+        self.cc1101.ftdi.read_all(&mut buf).map_err(|_| io::Error::from(io::ErrorKind::ConnectionAborted))?;
         let rssi = buf[0];
         trace!("<CC1101 RSSI DONE {}", rssi);
         Ok(rssi)
@@ -315,7 +315,7 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoWriter<'f, 'c, Ft, BUF_CA
         trace!(">CC1101 WAITING_FOR_TXBYTES <= {}", len);
         self.cc1101.ftdi.write_all(&wait).map_err(timeout_error)?;
         let mut buf = [0_u8; READ_LEN];
-        while self.cc1101.ftdi.read_all(&mut buf).is_err() {}
+        self.cc1101.ftdi.read_all(&mut buf).map_err(|_| io::Error::from(io::ErrorKind::ConnectionAborted))?;
         let txbytes = TXBYTES::from_bytes(buf).num_txbytes() as usize;
         trace!("<CC1101 WAITING_FOR_TXBYTES DONE {}", txbytes);
 
