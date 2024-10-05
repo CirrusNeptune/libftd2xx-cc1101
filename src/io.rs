@@ -10,7 +10,7 @@ use libftd2xx::{
 use ftdi_mpsse::mpsse;
 use log::trace;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
-use std::io;
+use std::{io, time};
 
 const fn size_to_rx_threshold(size: usize) -> FifoThreshold {
     match size {
@@ -109,6 +109,17 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoReader<'f, 'c, Ft, BUF_CA
         Ok(rxbytes)
     }
 
+    fn cpu_wait_for_remaining_bytes(&self, rem_bytes: usize) {
+        let drate_m = self.cc1101.regs.mdmcfg3().drate_m();
+        let drate_e = self.cc1101.regs.mdmcfg4().drate_e();
+        let drate = (((256 + drate_m as u64) * 26_000_000) << drate_e) >> 28;
+        let drate_bytes = drate / 8;
+        let wait_micros = rem_bytes as u64 * 1_000_000 / drate_bytes;
+        trace!("FILLBUFFER WAIT {} micros", wait_micros);
+        let wait_dur = time::Duration::from_micros(wait_micros);
+        std::thread::sleep(wait_dur);
+    }
+
     fn wait_for_rx_fifo_len(&mut self, len: usize) -> io::Result<()> {
         let new_iocfg2 = self
             .cc1101
@@ -188,8 +199,14 @@ impl<'f, 'c, Ft: FtdiCommon, const BUF_CAP: usize> FifoReader<'f, 'c, Ft, BUF_CA
         let rxbytes = self.srx()?;
 
         let read_len = self.rb.capacity() - self.rb.len();
+        trace!("FILLBUFFER1 rxbytes:{}/{} {:?}", rxbytes, read_len, time::Instant::now());
         if rxbytes < read_len {
-            self.wait_for_rx_fifo_len(read_len)?;
+            self.cpu_wait_for_remaining_bytes(read_len - rxbytes);
+            let rxbytes = self.srx()?;
+            trace!("FILLBUFFER2 rxbytes:{}/{} {:?}", rxbytes, read_len, time::Instant::now());
+            if rxbytes < read_len {
+                self.wait_for_rx_fifo_len(read_len)?;
+            }
         }
 
         self.read_into_buffer(read_len)
